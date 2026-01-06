@@ -1,7 +1,7 @@
-import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
-
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
+import 'firebase/compat/storage';
+// Lấy config từ environment variables
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyAtU6SOW_f9sZlj8dN0hRkwESIIJfPEb0U",
@@ -13,12 +13,16 @@ const firebaseConfig = {
   measurementId: "G-SWWS12JHVC"
 };
 
+// Khởi tạo Firebase
 const app = initializeApp(firebaseConfig);
-export const auth = getAuth(app);
-<<<<<<< HEAD
-export const db = getFirestore(app);
 
-console.log("Firebase đã khởi tạo:", app.name);
-=======
-export const db = getFirestore(app);
->>>>>>> 7bd92f365153ec1161411497496a958028054476
+// Khởi tạo Auth với AsyncStorage persistence
+const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(AsyncStorage)
+});
+
+// Khởi tạo Firestore
+const db = getFirestore(app);
+
+export { app, auth, db };
+
