@@ -1,145 +1,205 @@
-<<<<<<< HEAD
-import React from 'react';
-import { SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { auth, db } from '@/configs/firebaseConfig';
+import { Ionicons } from '@expo/vector-icons';
+import { collection, onSnapshot, orderBy, query, Unsubscribe, where } from 'firebase/firestore';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Dimensions,
+  FlatList,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
+
+const { width } = Dimensions.get('window');
 
 export default function TicketsScreen() {
-  return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Vé của tôi</Text>
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>Bạn chưa có vé nào. Hãy đặt vé ngay!</Text>
+  const [myTickets, setMyTickets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let unsubscribe: Unsubscribe | undefined;
+    const user = auth.currentUser;
+
+    if (user) {
+      const q = query(
+        collection(db, "bookings"), 
+        where("userId", "==", user.uid),
+        orderBy("createdAt", "desc")
+      );
+
+      unsubscribe = onSnapshot(q, (snapshot) => {
+        const tickets = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setMyTickets(tickets);
+        setLoading(false);
+      }, (error) => {
+        console.error("Lỗi lấy vé:", error);
+        setLoading(false);
+      });
+    } else {
+      setLoading(false);
+    }
+
+    return () => {
+      if (unsubscribe) unsubscribe();
+    };
+  }, []);
+
+  const renderTicketItem = ({ item }: { item: any }) => (
+    <View style={styles.ticketCard}>
+      {/* Phần trên của vé: Tên phim & Trạng thái */}
+      <View style={styles.ticketTop}>
+        <View style={styles.movieInfo}>
+          <Text style={styles.movieTitle} numberOfLines={2}>{item.movieTitle}</Text>
+          <View style={styles.statusBadge}>
+            <Ionicons name="checkmark-circle" size={12} color="#4caf50" />
+            <Text style={styles.statusText}>VÉ HỢP LỆ</Text>
+          </View>
+        </View>
+        <View style={styles.priceTag}>
+           <Text style={styles.priceValue}>{item.totalAmount?.toLocaleString()}đ</Text>
+        </View>
       </View>
-    </SafeAreaView>
+
+      {/* Đường cắt vé */}
+      <View style={styles.dashedLineContainer}>
+        <View style={styles.circleLeft} />
+        <View style={styles.dashedLine} />
+        <View style={styles.circleRight} />
+      </View>
+
+      {/* Phần dưới của vé: Chi tiết suất chiếu */}
+      <View style={styles.ticketBottom}>
+        <View style={styles.infoGrid}>
+          {/* Cột 1 */}
+          <View style={styles.infoCol}>
+            <View style={styles.detailItem}>
+              <Text style={styles.label}>RẠP CHIẾU</Text>
+              <Text style={styles.value} numberOfLines={1}>
+                {item.theater || 'CGV Vincom Center'}
+              </Text>
+            </View>
+            <View style={styles.detailItem}>
+              <Text style={styles.label}>NGÀY CHIẾU</Text>
+              <Text style={styles.value}>Ngày {item.showDate || '---'}</Text>
+            </View>
+            <View style={styles.detailItem}>
+              <Text style={styles.label}>PHƯƠNG THỨC</Text>
+              <Text style={styles.value}>{item.paymentMethod || 'MoMo'}</Text>
+            </View>
+          </View>
+
+          {/* Cột 2 */}
+          <View style={styles.infoCol}>
+            <View style={styles.detailItem}>
+              <Text style={styles.label}>GIỜ CHIẾU</Text>
+              <Text style={[styles.value, {color: '#00E5FF'}]}>
+                {item.showTime || '09:00'}
+              </Text>
+            </View>
+            <View style={styles.detailItem}>
+              <Text style={styles.label}>SỐ GHẾ</Text>
+              <Text style={[styles.value, {color: '#e21221'}]}>
+                {item.seats?.join(', ')}
+              </Text>
+            </View>
+            <View style={styles.detailItem}>
+              <Text style={styles.label}>MÃ ĐẶT VÉ</Text>
+              <Text style={styles.value}>#{item.id.slice(0, 8).toUpperCase()}</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Mã QR giả lập / Barcode */}
+        <View style={styles.barcodeContainer}>
+          <View style={styles.barcodePlaceholder}>
+            {[...Array(20)].map((_, i) => (
+              <View 
+                key={i} 
+                style={[
+                  styles.barcodeLine, 
+                  { width: Math.random() * 5 + 1, opacity: Math.random() + 0.3 }
+                ]} 
+              />
+            ))}
+          </View>
+          <Text style={styles.barcodeText}>{item.id}</Text>
+        </View>
+      </View>
+    </View>
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.centerContainer}>
+        <ActivityIndicator size="large" color="#e21221" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.headerTitle}>Vé của tôi</Text>
+        <Text style={styles.headerSubtitle}>Bạn có {myTickets.length} suất chiếu sắp tới</Text>
+      </View>
+
+      <FlatList
+        data={myTickets}
+        keyExtractor={(item) => item.id}
+        renderItem={renderTicketItem}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="ticket-outline" size={80} color="#2a2a3a" />
+            <Text style={styles.emptyText}>Chưa có lịch sử đặt vé</Text>
+            <Text style={styles.emptySubText}>Các vé bạn đã mua sẽ xuất hiện tại đây.</Text>
+          </View>
+        }
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0f0f1a', padding: 20 },
-  title: { color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 20 },
-  emptyContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  emptyText: { color: '#888', fontSize: 16 }
+  container: { flex: 1, backgroundColor: '#0A0F1C' },
+  header: { paddingHorizontal: 20, paddingTop: 60, marginBottom: 20 },
+  headerTitle: { color: '#fff', fontSize: 28, fontWeight: 'bold' },
+  headerSubtitle: { color: '#888', fontSize: 14, marginTop: 4 },
+  listContent: { paddingHorizontal: 20, paddingBottom: 100 },
+  centerContainer: { flex: 1, backgroundColor: '#0A0F1C', justifyContent: 'center', alignItems: 'center' },
+  
+  ticketCard: { backgroundColor: '#161626', borderRadius: 24, marginBottom: 25, elevation: 5, shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10 },
+  ticketTop: { padding: 20, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  movieInfo: { flex: 1, paddingRight: 10 },
+  movieTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 8, lineHeight: 24 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(76, 175, 80, 0.1)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, alignSelf: 'flex-start' },
+  statusText: { color: '#4caf50', fontSize: 9, fontWeight: 'bold', marginLeft: 4 },
+  priceTag: { backgroundColor: '#2a2a3a', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 10 },
+  priceValue: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
+
+  dashedLineContainer: { flexDirection: 'row', alignItems: 'center', height: 24, width: '100%' },
+  circleLeft: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#0A0F1C', marginLeft: -12 },
+  circleRight: { width: 24, height: 24, borderRadius: 12, backgroundColor: '#0A0F1C', marginRight: -12 },
+  dashedLine: { flex: 1, height: 1, borderStyle: 'dashed', borderWidth: 1, borderColor: '#333' },
+
+  ticketBottom: { padding: 20 },
+  infoGrid: { flexDirection: 'row', justifyContent: 'space-between' },
+  infoCol: { flex: 1 },
+  detailItem: { marginBottom: 15 },
+  label: { color: '#555', fontSize: 9, fontWeight: 'bold', letterSpacing: 1, marginBottom: 4 },
+  value: { color: '#fff', fontSize: 13, fontWeight: 'bold' },
+
+  barcodeContainer: { marginTop: 10, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#2a2a3a', paddingTop: 20 },
+  barcodePlaceholder: { flexDirection: 'row', height: 40, alignItems: 'center', justifyContent: 'center' },
+  barcodeLine: { height: 30, backgroundColor: '#fff', marginHorizontal: 1, borderRadius: 1 },
+  barcodeText: { color: '#444', fontSize: 10, marginTop: 5, letterSpacing: 2 },
+
+  emptyContainer: { alignItems: 'center', marginTop: 100 },
+  emptyText: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginTop: 10 },
+  emptySubText: { color: '#666', fontSize: 14, marginTop: 5, textAlign: 'center' },
 });
-=======
-import { Armchair, Calendar, ChevronRight, Clock, MapPin, QrCode, Ticket as TicketIcon } from 'lucide-react';
-import { useState } from 'react';
-import { Booking } from '../App';
-
-interface TicketsProps {
-  bookings: Booking[];
-  onSelectBooking: (booking: Booking) => void;
-}
-
-export function Tickets({ bookings, onSelectBooking }: TicketsProps) {
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'past'>('upcoming');
-
-  const upcomingBookings = bookings.filter((b) => b.status === 'upcoming');
-  const pastBookings = bookings.filter((b) => b.status === 'past');
-
-  const displayBookings = activeTab === 'upcoming' ? upcomingBookings : pastBookings;
-
-  return (
-    <div className="min-h-screen bg-gray-950 text-white pb-20">
-      {/* Header */}
-      <div className="sticky top-0 bg-gray-950 z-10 px-6 pt-6 pb-4 border-b border-gray-800">
-        <h1 className="text-2xl mb-4">Vé của tôi</h1>
-        
-        {/* Tabs */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => setActiveTab('upcoming')}
-            className={`flex-1 py-2 rounded-xl transition-all ${
-              activeTab === 'upcoming'
-                ? 'bg-yellow-500 text-gray-900'
-                : 'bg-gray-900 text-gray-400'
-            }`}
-          >
-            Sắp tới ({upcomingBookings.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('past')}
-            className={`flex-1 py-2 rounded-xl transition-all ${
-              activeTab === 'past'
-                ? 'bg-yellow-500 text-gray-900'
-                : 'bg-gray-900 text-gray-400'
-            }`}
-          >
-            Đã xem ({pastBookings.length})
-          </button>
-        </div>
-      </div>
-
-      {/* Bookings List */}
-      <div className="px-6 py-6">
-        {displayBookings.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-center">
-            <TicketIcon className="w-16 h-16 text-gray-700 mb-4" />
-            <p className="text-gray-400 mb-2">
-              {activeTab === 'upcoming' ? 'Chưa có vé nào' : 'Chưa có lịch sử'}
-            </p>
-            <p className="text-sm text-gray-500">
-              {activeTab === 'upcoming' 
-                ? 'Đặt vé ngay để xem phim yêu thích!'
-                : 'Các vé đã sử dụng sẽ hiện ở đây'}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {displayBookings.map((booking) => (
-              <div
-                key={booking.id}
-                onClick={() => onSelectBooking(booking)}
-                className="bg-gray-900 rounded-2xl overflow-hidden border border-gray-800 active:scale-98 transition-transform"
-              >
-                <div className="flex gap-4 p-4">
-                  {/* Poster */}
-                  <div className="w-24 aspect-[2/3] rounded-xl overflow-hidden flex-shrink-0">
-                    <img
-                      src={booking.movie.poster}
-                      alt={booking.movie.title}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1">
-                    <h3 className="mb-2 line-clamp-2">{booking.movie.title}</h3>
-                    <div className="space-y-2 text-sm text-gray-400">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4" />
-                        <span>{booking.date}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
-                        <span>{booking.showtime.time}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-4 h-4" />
-                        <span className="line-clamp-1">{booking.cinema.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Armchair className="w-4 h-4" />
-                        <span>{booking.seats.map(s => `${s.row}${s.number}`).join(', ')}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer */}
-                {activeTab === 'upcoming' && (
-                  <div className="border-t border-gray-800 px-4 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-yellow-400">
-                      <QrCode className="w-5 h-5" />
-                      <span className="text-sm">Xem mã QR</span>
-                    </div>
-                    <ChevronRight className="w-5 h-5 text-gray-400" />
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
->>>>>>> 7bd92f365153ec1161411497496a958028054476

@@ -1,6 +1,5 @@
-<<<<<<< HEAD
 import { auth, db } from '@/configs/firebaseConfig';
-import { Ionicons } from '@expo/vector-icons'; // Sử dụng Ionicons cho Mobile
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -8,11 +7,8 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-=======
-import { useRouter } from 'expo-router';
-import {
->>>>>>> 7bd92f365153ec1161411497496a958028054476
   Image,
+  Modal,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -20,452 +16,587 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-<<<<<<< HEAD
 
 export default function ProfileScreen() {
   const router = useRouter();
   const [userInfo, setUserInfo] = useState<any>(null);
   const [extraData, setExtraData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
+  // Theo dõi trạng thái đăng nhập của người dùng
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
+        // Người dùng đã đăng nhập
         setUserInfo(user);
-        const userDoc = await getDoc(doc(db, "users", user.uid));
-        if (userDoc.exists()) setExtraData(userDoc.data());
+        try {
+          // Lấy thông tin bổ sung từ Firestore
+          const userDoc = await getDoc(doc(db, "users", user.uid));
+          if (userDoc.exists()) setExtraData(userDoc.data());
+        } catch (error) {
+          console.error("Lỗi khi lấy dữ liệu người dùng:", error);
+        }
         setLoading(false);
       } else {
+        // Người dùng chưa đăng nhập, chuyển về trang login
         router.replace('/(auth)/login');
       }
     });
+    
+    // Dọn dẹp khi component unmount
     return unsubscribe;
   }, []);
 
-  const handleLogout = () => {
-    Alert.alert("Đăng xuất", "Bạn muốn thoát tài khoản?", [
-      { text: "Hủy", style: "cancel" },
-      { text: "Đăng xuất", onPress: () => signOut(auth), style: "destructive" }
-    ]);
+  // Hàm xử lý đăng xuất chính
+  const performLogout = async () => {
+    console.log("Bắt đầu quá trình đăng xuất...");
+    setIsSigningOut(true);
+    
+    try {
+      // 1. Đăng xuất khỏi Firebase Authentication
+      await signOut(auth);
+      console.log("Đăng xuất Firebase thành công");
+      
+      // 2. Đợi một chút để đảm bảo state được cập nhật
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // 3. Chuyển hướng về trang đăng nhập
+      console.log("Đang chuyển hướng về trang đăng nhập...");
+      router.replace('/(auth)/login');
+      
+    } catch (error: any) {
+      console.error("Lỗi đăng xuất:", error);
+      Alert.alert("Lỗi", "Đăng xuất thất bại. Vui lòng thử lại!");
+    } finally {
+      setIsSigningOut(false);
+    }
   };
 
-  const MenuItem = ({ icon, title, color = "#fff", onPress }: any) => (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress}>
+  // Mở modal xác nhận đăng xuất
+  const openLogoutModal = () => {
+    console.log("Mở modal xác nhận đăng xuất");
+    setShowLogoutModal(true);
+  };
+
+  // Đóng modal
+  const closeLogoutModal = () => {
+    console.log("Đóng modal đăng xuất");
+    setShowLogoutModal(false);
+  };
+
+  // Xác nhận đăng xuất từ modal
+  const confirmLogout = () => {
+    console.log("Xác nhận đăng xuất từ modal");
+    closeLogoutModal();
+    performLogout();
+  };
+
+  // Component cho các mục menu
+  const MenuItem = ({ 
+    icon, 
+    title, 
+    color = "#fff", 
+    onPress, 
+    disabled = false 
+  }: any) => (
+    <TouchableOpacity 
+      style={[styles.menuItem, disabled && styles.menuItemDisabled]} 
+      onPress={onPress}
+      disabled={disabled}
+      activeOpacity={0.7}
+    >
       <View style={styles.menuLeft}>
+        {/* Background với màu nhạt của icon */}
         <View style={[styles.iconBg, { backgroundColor: `${color}15` }]}>
           <Ionicons name={icon} size={22} color={color} />
         </View>
-        <Text style={styles.menuText}>{title}</Text>
+        <Text style={[styles.menuText, disabled && styles.menuTextDisabled]}>
+          {title}
+        </Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color="#444" />
     </TouchableOpacity>
   );
 
-  if (loading) return <View style={styles.loading}><ActivityIndicator color="#e21221" /></View>;
+  // Hiển thị loading khi đang tải dữ liệu
+  if (loading) return (
+    <View style={styles.loadingContainer}>
+      <ActivityIndicator color="#e21221" size="large" />
+      <Text style={styles.loadingText}>Đang tải thông tin...</Text>
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView 
+        showsVerticalScrollIndicator={false} 
+        contentContainerStyle={styles.scrollContent}
+      >
         
-        {/* Header Section */}
+        {/* Phần Header với thông tin người dùng */}
         <View style={styles.header}>
+          {/* Avatar người dùng */}
           <Image 
-            source={{ uri: extraData?.photoURL || 'https://randomuser.me/api/portraits/lego/1.jpg' }} 
+            source={{ 
+              uri: extraData?.photoURL || 'https://randomuser.me/api/portraits/lego/1.jpg' 
+            }} 
             style={styles.avatar} 
           />
+          
+          {/* Thông tin chi tiết */}
           <View style={styles.info}>
-            <Text style={styles.name}>{extraData?.fullName || "Người dùng"}</Text>
-            <Text style={styles.email}>{userInfo?.email}</Text>
+            <Text style={styles.name}>
+              {extraData?.fullName || "Người dùng"}
+            </Text>
+            <Text style={styles.email}>
+              {userInfo?.email}
+            </Text>
+            {/* Badge hiển thị cấp độ thành viên */}
             <View style={styles.badge}>
-              <Text style={styles.badgeText}>{extraData?.membership || "FREE"}</Text>
+              <Text style={styles.badgeText}>
+                {extraData?.membership || "FREE"}
+              </Text>
             </View>
           </View>
-          <TouchableOpacity style={styles.editBtn}>
+          
+          {/* Nút chỉnh sửa (placeholder) */}
+          <TouchableOpacity 
+            style={styles.editBtn} 
+            activeOpacity={0.7}
+            onPress={() => Alert.alert("Thông báo", "Tính năng chỉnh sửa sẽ sớm ra mắt!")}
+          >
             <Ionicons name="pencil" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
 
-        {/* Stats Row */}
+        {/* Thống kê hoạt động */}
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
-            <Text style={styles.statNum}>{extraData?.watchTime || "0h"}</Text>
+            <Text style={styles.statNum}>
+              {extraData?.watchTime || "0h"}
+            </Text>
             <Text style={styles.statLabel}>Xem phim</Text>
           </View>
+          
           <View style={styles.divider} />
+          
           <View style={styles.statBox}>
-            <Text style={styles.statNum}>{extraData?.favoriteMovies?.length || 0}</Text>
+            <Text style={styles.statNum}>
+              {extraData?.favoriteMovies?.length || 0}
+            </Text>
             <Text style={styles.statLabel}>Yêu thích</Text>
           </View>
+          
           <View style={styles.divider} />
+          
           <View style={styles.statBox}>
-            <Text style={styles.statNum}>{extraData?.purchasedMovies?.length || 0}</Text>
+            <Text style={styles.statNum}>
+              {extraData?.purchasedMovies?.length || 0}
+            </Text>
             <Text style={styles.statLabel}>Đã mua</Text>
           </View>
         </View>
 
-        {/* Menu Groups */}
+        {/* Nhóm menu: Tài khoản */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>TÀI KHOẢN</Text>
-          <MenuItem icon="bookmark-outline" title="Danh sách xem sau" color="#3498db" />
-          <MenuItem icon="time-outline" title="Lịch sử xem" color="#f1c40f" />
-          <MenuItem icon="heart-outline" title="Phim yêu thích" color="#e74c3c" />
-          <MenuItem icon="star-outline" title="Đánh giá của tôi" color="#9b59b6" />
+          
+          <MenuItem 
+            icon="bookmark-outline" 
+            title="Danh sách xem sau" 
+            color="#3498db" 
+            onPress={() => Alert.alert("Thông báo", "Tính năng sẽ sớm ra mắt!")}
+          />
+          
+          <MenuItem 
+            icon="time-outline" 
+            title="Lịch sử xem" 
+            color="#f1c40f" 
+            onPress={() => Alert.alert("Thông báo", "Tính năng sẽ sớm ra mắt!")}
+          />
+          
+          <MenuItem 
+            icon="heart-outline" 
+            title="Phim yêu thích" 
+            color="#e74c3c" 
+            onPress={() => Alert.alert("Thông báo", "Tính năng sẽ sớm ra mắt!")}
+          />
+          
+          <MenuItem 
+            icon="star-outline" 
+            title="Đánh giá của tôi" 
+            color="#9b59b6" 
+            onPress={() => Alert.alert("Thông báo", "Tính năng sẽ sớm ra mắt!")}
+          />
         </View>
 
+        {/* Nhóm menu: Thiết lập */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>THIẾT LẬP</Text>
-          <MenuItem icon="settings-outline" title="Cài đặt" color="#95a5a6" />
-          <MenuItem icon="help-circle-outline" title="Trợ giúp & Hỗ trợ" color="#2ecc71" />
-          <MenuItem icon="log-out-outline" title="Đăng xuất" color="#e21221" onPress={handleLogout} />
-=======
-// Import Hook lấy dữ liệu toàn cục
-import { useAuth } from '../../constants/AuthContext';
-
-export default function ProfileScreen() {
-  const router = useRouter();
-  
-  // Lấy trạng thái đăng nhập và thông tin user từ Context (thay vì useState cục bộ)
-  const { isLoggedIn, user, logout } = useAuth();
-
-  const handleLoginPress = () => {
-    // Chuyển sang màn hình login nằm trong thư mục (auth)
-    router.push('/(auth)/login');
-  };
-
-  const handleLogoutPress = () => {
-    // Gọi hàm logout từ Context
-    logout();
-  };
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false}>
-        
-        {/* Header Profile */}
-        <View style={styles.header}>
-          {/* Kiểm tra isLoggedIn từ Context */}
-          {isLoggedIn && user ? (
-            <>
-              <View style={styles.avatarContainer}>
-                <Image 
-                  source={{ uri: user.avatar || 'https://via.placeholder.com/100' }} 
-                  style={styles.avatar}
-                />
-                <TouchableOpacity style={styles.editAvatarBtn}>
-                  <Text style={styles.editAvatarText}>✎</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.userName}>{user.name}</Text>
-              <Text style={styles.userEmail}>{user.email}</Text>
-            </>
-          ) : (
-            <>
-              <View style={styles.guestAvatar}>
-                <Text style={styles.guestAvatarText}>👤</Text>
-              </View>
-              <Text style={styles.guestTitle}>Khách</Text>
-              <Text style={styles.guestSubtitle}>Đăng nhập để sử dụng đầy đủ tính năng</Text>
-            </>
-          )}
-        </View>
-
-        {/* Nút hành động chính */}
-        <View style={styles.actionSection}>
-          {isLoggedIn ? (
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.logoutButton]}
-              onPress={handleLogoutPress}
-            >
-              <Text style={styles.logoutButtonText}>Đăng xuất</Text>
-            </TouchableOpacity>
-          ) : (
-            <TouchableOpacity 
-              style={[styles.actionButton, styles.loginButton]}
-              onPress={handleLoginPress}
-            >
-              <Text style={styles.loginButtonText}>Đăng nhập / Đăng ký</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-     {/* Menu chức năng */}
-        <View style={styles.menuSection}>
-          <Text style={styles.menuTitle}>Tài khoản</Text>
           
-          <View style={styles.menuList}>
-            {isLoggedIn ? (
-              // --- GIAO DIỆN KHI ĐÃ ĐĂNG NHẬP ---
-              <>
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={() => router.push('/settings/personal-info')} // ✅ Link đến trang Thông tin
-                >
-                  <Text style={styles.menuIcon}>📋</Text>
-                  <Text style={styles.menuText}>Thông tin cá nhân</Text>
-                  <Text style={styles.menuArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  // Chưa có file security.tsx thì bạn cần tạo thêm, hoặc tạm thời chưa dẫn đi đâu
-                  onPress={() => router.push('/settings/security')} 
-                >
-                  <Text style={styles.menuIcon}>🔒</Text>
-                  <Text style={styles.menuText}>Bảo mật & Đăng nhập</Text>
-                  <Text style={styles.menuArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={() => router.push('/settings/app-settings')} // ✅ Link đến Cài đặt
-                >
-                  <Text style={styles.menuIcon}>📱</Text>
-                  <Text style={styles.menuText}>Cài đặt ứng dụng</Text>
-                  <Text style={styles.menuArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={() => router.push('/settings/help')} // Cần tạo file help.tsx
-                >
-                  <Text style={styles.menuIcon}>❓</Text>
-                  <Text style={styles.menuText}>Trợ giúp & Hỗ trợ</Text>
-                  <Text style={styles.menuArrow}>›</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              // --- GIAO DIỆN KHI CHƯA ĐĂNG NHẬP (KHÁCH) ---
-              <>
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={() => router.push('/settings/about')} // ✅ Link đến Giới thiệu
-                >
-                  <Text style={styles.menuIcon}>ℹ️</Text>
-                  <Text style={styles.menuText}>Giới thiệu ứng dụng</Text>
-                  <Text style={styles.menuArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={() => router.push('/settings/app-settings')} // ✅ Link đến Cài đặt
-                >
-                  <Text style={styles.menuIcon}>📱</Text>
-                  <Text style={styles.menuText}>Cài đặt ứng dụng</Text>
-                  <Text style={styles.menuArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.menuItem}>
-                  {/* Nút này thường mở App Store/CH Play chứ không chuyển trang nội bộ */}
-                  <Text style={styles.menuIcon}>⭐</Text>
-                  <Text style={styles.menuText}>Đánh giá ứng dụng</Text>
-                  <Text style={styles.menuArrow}>›</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity 
-                  style={styles.menuItem}
-                  onPress={() => router.push('/settings/help')} 
-                >
-                  <Text style={styles.menuIcon}>❓</Text>
-                  <Text style={styles.menuText}>Trợ giúp & Hỗ trợ</Text>
-                  <Text style={styles.menuArrow}>›</Text>
-                </TouchableOpacity>
-              </>
+          <MenuItem 
+            icon="settings-outline" 
+            title="Cài đặt" 
+            color="#95a5a6" 
+            onPress={() => Alert.alert("Cài đặt", "Tính năng đang được phát triển!")}
+          />
+          
+          <MenuItem 
+            icon="help-circle-outline" 
+            title="Trợ giúp & Hỗ trợ" 
+            color="#2ecc71" 
+            onPress={() => Alert.alert(
+              "Trợ giúp", 
+              "Liên hệ với chúng tôi:\n\n📧 Email: support@moviehub.com\n📞 Hotline: 1900 1234"
             )}
-          </View>
+          />
+          
+          {/* Nút đăng xuất - Sử dụng Modal thay vì Alert */}
+          <TouchableOpacity 
+            style={[
+              styles.logoutButton,
+              isSigningOut && styles.logoutButtonDisabled
+            ]}
+            onPress={openLogoutModal}
+            disabled={isSigningOut}
+            activeOpacity={0.7}
+          >
+            <View style={styles.logoutLeft}>
+              <View style={[styles.iconBg, { backgroundColor: '#e2122115' }]}>
+                <Ionicons name="log-out-outline" size={22} color="#e21221" />
+              </View>
+              <Text style={styles.logoutText}>
+                {isSigningOut ? "Đang đăng xuất..." : "Đăng xuất"}
+              </Text>
+            </View>
+            {isSigningOut ? (
+              <ActivityIndicator color="#e21221" size="small" />
+            ) : (
+              <Ionicons name="chevron-forward" size={20} color="#444" />
+            )}
+          </TouchableOpacity>
         </View>
 
-        {/* Thông tin phiên bản */}
-        <View style={styles.versionSection}>
-          <Text style={styles.versionText}>Phiên bản 1.1.3</Text>
-          <Text style={styles.copyrightText}>© 2026 Ứng dụng của Minh</Text>
->>>>>>> 7bd92f365153ec1161411497496a958028054476
-        </View>
-
+      
       </ScrollView>
+
+      {/* Modal xác nhận đăng xuất */}
+      <Modal
+        visible={showLogoutModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={closeLogoutModal}
+      >
+        {/* Overlay mờ phía sau modal */}
+        <TouchableOpacity 
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closeLogoutModal}
+        >
+          {/* Nội dung modal - Ngăn không cho touch trên overlay đóng modal */}
+          <TouchableOpacity 
+            style={styles.modalContentWrapper}
+            activeOpacity={1}
+            onPress={(e) => e.stopPropagation()}
+          >
+            <View style={styles.modalContent}>
+              
+              {/* Icon và tiêu đề */}
+              <View style={styles.modalHeader}>
+                <Ionicons name="log-out-outline" size={48} color="#e21221" />
+                <Text style={styles.modalTitle}>Đăng xuất</Text>
+                <Text style={styles.modalSubtitle}>
+                  Bạn có chắc chắn muốn đăng xuất khỏi tài khoản?
+                </Text>
+              </View>
+
+              {/* Nút hành động */}
+              <View style={styles.modalButtons}>
+                {/* Nút hủy */}
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalCancelButton]}
+                  onPress={closeLogoutModal}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.modalCancelText}>Hủy</Text>
+                </TouchableOpacity>
+
+                {/* Nút xác nhận đăng xuất */}
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.modalConfirmButton]}
+                  onPress={confirmLogout}
+                  activeOpacity={0.7}
+                  disabled={isSigningOut}
+                >
+                  {isSigningOut ? (
+                    <ActivityIndicator color="#fff" size="small" />
+                  ) : (
+                    <Text style={styles.modalConfirmText}>Đăng xuất</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+              
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
     </SafeAreaView>
   );
 }
 
+// Stylesheet cho toàn bộ component
 const styles = StyleSheet.create({
-<<<<<<< HEAD
-  container: { flex: 1, backgroundColor: '#0f0f1a' },
-  loading: { flex: 1, justifyContent: 'center', backgroundColor: '#0f0f1a' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 25, paddingTop: 40 },
-  avatar: { width: 85, height: 85, borderRadius: 45, borderWidth: 2, borderColor: '#e21221' },
-  info: { flex: 1, marginLeft: 15 },
-  name: { color: '#fff', fontSize: 22, fontWeight: 'bold' },
-  email: { color: '#888', fontSize: 14, marginVertical: 4 },
-  badge: { backgroundColor: '#e21221', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 2, borderRadius: 6 },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '800' },
-  editBtn: { backgroundColor: '#1a1a2a', padding: 10, borderRadius: 20 },
-  statsRow: { flexDirection: 'row', backgroundColor: '#161626', margin: 20, padding: 20, borderRadius: 20, alignItems: 'center' },
-  statBox: { flex: 1, alignItems: 'center' },
-  statNum: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  statLabel: { color: '#666', fontSize: 12, marginTop: 4 },
-  divider: { width: 1, height: 30, backgroundColor: '#2a2a3a' },
-  section: { paddingHorizontal: 20, marginTop: 25 },
-  sectionTitle: { color: '#444', fontSize: 12, fontWeight: 'bold', marginBottom: 15, letterSpacing: 1 },
-  menuItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12, backgroundColor: '#1a1a2a', padding: 12, borderRadius: 15 },
-  menuLeft: { flexDirection: 'row', alignItems: 'center' },
-  iconBg: { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center', marginRight: 12 },
-  menuText: { color: '#eee', fontSize: 15, fontWeight: '500' }
-=======
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
+  // Container chính
+  container: { 
+    flex: 1, 
+    backgroundColor: '#0f0f1a' 
   },
-  header: {
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    paddingVertical: 30,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+  
+  // Loading state
+  loadingContainer: { 
+    flex: 1, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    backgroundColor: '#0f0f1a' 
   },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 15,
+  loadingText: {
+    color: '#888',
+    marginTop: 10,
+    fontSize: 14,
   },
-  avatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    borderColor: '#007AFF',
+  
+  // ScrollView content
+  scrollContent: { 
+    paddingBottom: 100 
   },
-  editAvatarBtn: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#007AFF',
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#fff',
+  
+  // Header section
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    padding: 25, 
+    paddingTop: 40 
   },
-  editAvatarText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  avatar: { 
+    width: 85, 
+    height: 85, 
+    borderRadius: 45, 
+    borderWidth: 2, 
+    borderColor: '#e21221' 
   },
-  guestAvatar: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: '#e0e0e0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 15,
+  info: { 
+    flex: 1, 
+    marginLeft: 15 
   },
-  guestAvatarText: {
-    fontSize: 50,
+  name: { 
+    color: '#fff', 
+    fontSize: 22, 
+    fontWeight: 'bold' 
   },
-  userName: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
+  email: { 
+    color: '#888', 
+    fontSize: 14, 
+    marginVertical: 4 
   },
-  userEmail: {
-    fontSize: 16,
+  badge: { 
+    backgroundColor: '#e21221', 
+    alignSelf: 'flex-start', 
+    paddingHorizontal: 10, 
+    paddingVertical: 2, 
+    borderRadius: 6 
+  },
+  badgeText: { 
+    color: '#fff', 
+    fontSize: 10, 
+    fontWeight: '800' 
+  },
+  editBtn: { 
+    backgroundColor: '#1a1a2a', 
+    padding: 10, 
+    borderRadius: 20 
+  },
+  
+  // Stats row
+  statsRow: { 
+    flexDirection: 'row', 
+    backgroundColor: '#161626', 
+    margin: 20, 
+    padding: 20, 
+    borderRadius: 20, 
+    alignItems: 'center' 
+  },
+  statBox: { 
+    flex: 1, 
+    alignItems: 'center' 
+  },
+  statNum: { 
+    color: '#fff', 
+    fontSize: 18, 
+    fontWeight: 'bold' 
+  },
+  statLabel: { 
+    color: '#666', 
+    fontSize: 12, 
+    marginTop: 4 
+  },
+  divider: { 
+    width: 1, 
+    height: 30, 
+    backgroundColor: '#2a2a3a' 
+  },
+  
+  // Menu sections
+  section: { 
+    paddingHorizontal: 20, 
+    marginTop: 25 
+  },
+  sectionTitle: { 
+    color: '#444', 
+    fontSize: 12, 
+    fontWeight: 'bold', 
+    marginBottom: 15, 
+    letterSpacing: 1 
+  },
+  
+  // Menu items
+  menuItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
+    marginBottom: 12, 
+    backgroundColor: '#1a1a2a', 
+    padding: 12, 
+    borderRadius: 15 
+  },
+  menuItemDisabled: {
+    opacity: 0.5,
+  },
+  menuLeft: { 
+    flexDirection: 'row', 
+    alignItems: 'center' 
+  },
+  iconBg: { 
+    width: 40, 
+    height: 40, 
+    borderRadius: 12, 
+    justifyContent: 'center', 
+    alignItems: 'center', 
+    marginRight: 12 
+  },
+  menuText: { 
+    color: '#eee', 
+    fontSize: 15, 
+    fontWeight: '500' 
+  },
+  menuTextDisabled: {
     color: '#666',
   },
-  guestTitle: {
-    fontSize: 24,
+  
+  // Logout button
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+    backgroundColor: '#1a1a2a',
+    padding: 12,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: '#e21221',
+  },
+  logoutButtonDisabled: {
+    opacity: 0.7,
+    borderColor: '#a00d17',
+  },
+  logoutLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  logoutText: {
+    color: '#e21221',
+    fontSize: 15,
     fontWeight: 'bold',
-    color: '#333',
+  },
+  
+  // Debug info
+  debugInfo: {
+    backgroundColor: '#1a1a2a',
+    margin: 20,
+    padding: 15,
+    borderRadius: 12,
+    marginTop: 30,
+  },
+  debugText: {
+    color: '#888',
+    fontSize: 12,
+    fontFamily: 'monospace',
     marginBottom: 5,
   },
-  guestSubtitle: {
-    fontSize: 14,
-    color: '#888',
-    textAlign: 'center',
-    paddingHorizontal: 40,
-  },
-  actionSection: {
+  
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
     padding: 20,
   },
-  actionButton: {
+  modalContentWrapper: {
+    width: '100%',
+    maxWidth: 400,
+  },
+  modalContent: {
+    backgroundColor: '#1a1a2a',
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: '#2a2a3a',
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 28,
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginTop: 12,
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 15,
+    color: '#888',
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  loginButton: {
-    backgroundColor: '#007AFF',
+  modalCancelButton: {
+    backgroundColor: '#2a2a3a',
   },
-  loginButtonText: {
+  modalConfirmButton: {
+    backgroundColor: '#e21221',
+  },
+  modalCancelText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalConfirmText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
-  logoutButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ff3b30',
-  },
-  logoutButtonText: {
-    color: '#ff3b30',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  menuSection: {
-    backgroundColor: '#fff',
-    marginTop: 10,
-    paddingVertical: 15,
-  },
-  menuTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#888',
-    paddingHorizontal: 20,
-    marginBottom: 10,
-    textTransform: 'uppercase',
-  },
-  menuList: {
-    backgroundColor: '#fff',
-  },
-  menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 18,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  menuIcon: {
-    fontSize: 22,
-    marginRight: 15,
-    width: 30,
-  },
-  menuText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-  },
-  menuArrow: {
-    fontSize: 20,
-    color: '#ccc',
-    fontWeight: 'bold',
-  },
-  versionSection: {
-    alignItems: 'center',
-    paddingVertical: 30,
-  },
-  versionText: {
-    fontSize: 14,
-    color: '#999',
-    marginBottom: 5,
-  },
-  copyrightText: {
-    fontSize: 12,
-    color: '#bbb',
-  },
->>>>>>> 7bd92f365153ec1161411497496a958028054476
 });

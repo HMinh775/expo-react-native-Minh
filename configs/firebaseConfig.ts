@@ -15,10 +15,6 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-<<<<<<< HEAD
 export const db = getFirestore(app);
 
 console.log("Firebase đã khởi tạo:", app.name);
-=======
-export const db = getFirestore(app);
->>>>>>> 7bd92f365153ec1161411497496a958028054476

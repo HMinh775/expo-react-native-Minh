@@ -1,69 +1,54 @@
-<<<<<<< HEAD
-import { Stack } from 'expo-router';
-import { StatusBar } from 'react-native';
+import { Stack, useRootNavigationState, useRouter, useSegments } from 'expo-router';
+import { onAuthStateChanged } from 'firebase/auth';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, StatusBar, View } from 'react-native';
+import { auth } from '../configs/firebaseConfig';
 
 export default function RootLayout() {
+  const segments = useSegments();
+  const router = useRouter();
+  const navigationState = useRootNavigationState();
+  const [initializing, setInitializing] = useState(true);
+
+  useEffect(() => {
+    if (!navigationState?.key) return;
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const inAuthGroup = segments[0] === '(auth)';
+
+      if (initializing) setInitializing(false);
+
+      // Chờ 1 nhịp để Router sẵn sàng
+      setTimeout(() => {
+        if (!user && !inAuthGroup) {
+          router.replace('/login');
+        } else if (user && inAuthGroup) {
+          router.replace('/(tabs)');
+        }
+      }, 1);
+    });
+
+    return unsubscribe;
+  }, [segments, navigationState?.key, initializing]);
+
+  if (initializing || !navigationState?.key) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0f0f1a' }}>
+        <ActivityIndicator size="large" color="#e21221" />
+      </View>
+    );
+  }
+
   return (
     <>
       <StatusBar barStyle="light-content" backgroundColor="#0f0f1a" />
       <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen 
-          name="movie/[id]" 
-          options={{
-            presentation: 'modal',
-            animation: 'slide_from_bottom'
-          }}
-        />
+        <Stack.Screen name="movie/booking" />
+        <Stack.Screen name="checkout" />
+        <Stack.Screen name="payment/success" />
       </Stack>
     </>
   );
 }
-=======
-// app/_layout.tsx
-import { useColorScheme } from '@/hooks/use-color-scheme';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
-
-// --- THÊM DÒNG NÀY ---
-// Vì file này và thư mục constants cùng nằm trong app, nên dùng ./
-import { AuthProvider } from '../constants/AuthContext';
-// ---------------------
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
-SplashScreen.preventAutoHideAsync();
-
-export default function RootLayout() {
-  const colorScheme = useColorScheme();
-  const [loaded] = useFonts({
-    // SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-  });
-
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
-  if (!loaded) {
-    return null;
-  }
-
-  return (
-    // Bọc AuthProvider ở ngoài cùng
-    <AuthProvider>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} /> 
-          <Stack.Screen name="+not-found" />
-        </Stack>
-      </ThemeProvider>
-    </AuthProvider>
-  );
-}
->>>>>>> 7bd92f365153ec1161411497496a958028054476
