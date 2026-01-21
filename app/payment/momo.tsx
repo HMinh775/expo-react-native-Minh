@@ -1,55 +1,101 @@
-import { Ionicons } from '@expo/vector-icons';
+import { auth, db } from '@/configs/firebaseConfig'; // Thêm import này
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore'; // Thêm import này
+import React, { useMemo } from 'react';
+import { Alert, Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function MomoPayment() {
   const router = useRouter();
-  const params = useLocalSearchParams(); // Nhận movieId, title, seats, totalPrice...
-  const { totalPrice } = params;
+  const params = useLocalSearchParams(); // Lấy toàn bộ params
 
-  const handleConfirm = () => {
-    router.push({
-      pathname: '/payment/success',
-      params: { ...params, method: 'Ví MoMo' } // Truyền tiếp tất cả + phương thức
-    });
+  // --- LẤY ĐẦY ĐỦ CÁC BIẾN TỪ PARAMS ĐỂ KHÔNG BỊ UNDEFINED ---
+  const { 
+    totalPrice, 
+    title, 
+    screeningId, 
+    movieId, 
+    seats, 
+    date, 
+    time, 
+    cinema 
+  } = params;
+
+  // --- THÔNG TIN THẬT CỦA BẠN ---
+  const MOMO_PHONE = "1036467062"; 
+  const FULL_NAME = "HO CONG MINH"; 
+
+  const qrUrl = useMemo(() => {
+    const amount = totalPrice || 0;
+    const message = `Thanh toan ve ${title}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const momoPayload = `2|99|${MOMO_PHONE}|${FULL_NAME}||0|0|${amount}|${message}|transfer_myqr`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(momoPayload)}`;
+  }, [totalPrice, title]);
+
+  // --- HÀM XỬ LÝ LƯU VÉ VÀO FIREBASE ---
+  const handleConfirm = async () => {
+    // KIỂM TRA NẾU THIẾU DỮ LIỆU THÌ BÁO LỖI LUÔN, KHÔNG ĐỂ FIREBASE BÁO LỖI UNDEFINED
+    if (!screeningId || !movieId) {
+      console.error("Lỗi: screeningId hoặc movieId bị undefined", { screeningId, movieId });
+      Alert.alert("Lỗi", "Dữ liệu vé bị thiếu, vui lòng quay lại trang đặt vé.");
+      return;
+    }
+
+    try {
+      // Lưu vào collection 'bookings' hoặc 'tickets' tùy bạn đặt tên
+      await addDoc(collection(db, "bookings"), {
+        userId: auth.currentUser?.uid,
+        screeningId: screeningId, // Lấy từ params
+        movieId: movieId,         // Lấy từ params
+        movieTitle: title,
+        seats: typeof seats === 'string' ? seats.split(', ') : seats,
+        date: date,
+        time: time,
+        cinemaName: cinema,
+        totalPrice: Number(totalPrice),
+        status: "PAID",
+        paymentMethod: "MoMo",
+        createdAt: serverTimestamp(),
+      });
+
+      // Lưu xong mới chuyển sang trang thành công
+      router.replace('/payment/success' as any);
+    } catch (e) {
+      console.error("Lỗi lưu vé:", e);
+      Alert.alert("Lỗi", "Không thể lưu thông tin đặt vé. Vui lòng thử lại.");
+    }
   };
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Ionicons name="close" size={28} color="#fff" /></TouchableOpacity>
-        <Text style={styles.headerTitle}>Thanh toán MoMo</Text>
-        <View style={{width: 28}} />
-      </View>
-
-      <View style={styles.content}>
+    <SafeAreaView style={styles.container}>
+      <View style={styles.card}>
         <Image source={{ uri: 'https://upload.wikimedia.org/wikipedia/vi/f/fe/MoMo_Logo.png' }} style={styles.logo} />
-        <Text style={styles.amountText}>{Number(totalPrice).toLocaleString()}đ</Text>
+        <Text style={styles.title}>Thanh toán MoMo</Text>
         
-        <View style={styles.qrCard}>
-          <Image source={{ uri: 'https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=Momo_Payment_Example' }} style={styles.qrCode} />
-          <Text style={styles.qrHint}>Quét mã để thanh toán</Text>
+        <View style={styles.qrBox}>
+          <Image source={{ uri: qrUrl }} style={styles.qrImage} />
         </View>
 
-        <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm}>
-          <Text style={styles.confirmBtnText}>Xác nhận đã chuyển tiền</Text>
+        <Text style={styles.price}>{Number(totalPrice).toLocaleString()} đ</Text>
+        <Text style={styles.guide}>Mở App MoMo {"\n"} [Quét mã] để tự điền tiền</Text>
+
+        {/* Gọi hàm handleConfirm khi bấm nút */}
+        <TouchableOpacity style={styles.btn} onPress={handleConfirm}>
+          <Text style={styles.btnText}>Xác nhận đã chuyển khoản</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ae2070' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', padding: 20, paddingTop: 50, alignItems: 'center' },
-  headerTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  content: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
-  logo: { width: 70, height: 70, borderRadius: 15, marginBottom: 10 },
-  amountText: { color: '#fff', fontSize: 32, fontWeight: 'bold', marginBottom: 30 },
-  qrCard: { backgroundColor: '#fff', padding: 20, borderRadius: 20, alignItems: 'center', width: '90%' },
-  qrCode: { width: 220, height: 220 },
-  qrHint: { marginTop: 15, color: '#666', fontWeight: '500' },
-  confirmBtn: { marginTop: 40, backgroundColor: '#fff', paddingHorizontal: 40, paddingVertical: 18, borderRadius: 30, width: '90%', alignItems: 'center' },
-  confirmBtnText: { color: '#ae2070', fontWeight: 'bold', fontSize: 16 }
+  container: { flex: 1, backgroundColor: '#0A0F1C', justifyContent: 'center', padding: 20 },
+  card: { backgroundColor: '#fff', borderRadius: 30, padding: 25, alignItems: 'center' },
+  logo: { width: 50, height: 50, marginBottom: 10 },
+  title: { fontSize: 18, fontWeight: 'bold', color: '#af206b' },
+  qrBox: { padding: 10, backgroundColor: '#f4f4f4', borderRadius: 20, marginTop: 15 },
+  qrImage: { width: 250, height: 250 },
+  price: { fontSize: 26, fontWeight: 'bold', color: '#af206b', marginTop: 15 },
+  guide: { textAlign: 'center', color: '#666', marginTop: 10, fontSize: 13, lineHeight: 20 },
+  btn: { backgroundColor: '#af206b', width: '100%', padding: 16, borderRadius: 15, marginTop: 25 },
+  btnText: { color: '#fff', fontWeight: 'bold', textAlign: 'center' }
 });

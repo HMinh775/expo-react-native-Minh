@@ -1,71 +1,89 @@
+import { auth, db } from '@/configs/firebaseConfig';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { addDoc, collection, serverTimestamp } from 'firebase/firestore';
+import React, { useMemo } from 'react';
+import { Alert, Image, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 export default function BankPayment() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { totalPrice, title, seats } = params;
+  
+  // Nhận đầy đủ params từ Checkout
+  const { totalPrice, title, seats, date, time, cinema, movieId, screeningId } = params;
 
-  const handleConfirm = () => {
-    router.push({
-      pathname: '/payment/success',
-      params: { ...params, method: 'Chuyển khoản Ngân hàng' }
-    });
+  // --- THÔNG TIN NGÂN HÀNG ---
+  const BANK_ID = "VCB"; 
+  const ACCOUNT_NO = "0345678999"; 
+  const ACCOUNT_NAME = "HO CONG MINH";
+
+  const qrUrl = useMemo(() => {
+    const amount = totalPrice || 0;
+    const description = `TT VE ${title}`.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+    return `https://img.vietqr.io/image/${BANK_ID}-${ACCOUNT_NO}-qr_only.png?amount=${amount}&addInfo=${encodeURIComponent(description)}&accountName=${encodeURIComponent(ACCOUNT_NAME)}`;
+  }, [totalPrice, title]);
+
+  const handleConfirm = async () => {
+    // KIỂM TRA DỮ LIỆU TRƯỚC KHI LƯU
+    if (!screeningId || !movieId) {
+      Alert.alert("Lỗi", "Thiếu thông tin suất chiếu. Vui lòng thử lại từ bước chọn ghế.");
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "bookings"), { // Đổi thành 'bookings' cho giống Momo
+        userId: auth.currentUser?.uid,
+        screeningId: screeningId,
+        movieId: movieId,
+        movieTitle: title,
+        seats: typeof seats === 'string' ? seats.split(', ') : seats,
+        date, time, cinemaName: cinema,
+        totalPrice: Number(totalPrice),
+        status: "PAID",
+        paymentMethod: "Banking",
+        createdAt: serverTimestamp(),
+      });
+      router.replace('/payment/success' as any);
+    } catch (e) {
+      console.error(e);
+      Alert.alert("Lỗi", "Không thể lưu vé.");
+    }
   };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity>
+        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <Ionicons name="chevron-back" size={24} color="#fff" />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>Chuyển khoản</Text>
-        <View style={{width: 24}} />
+        <View style={{ width: 40 }} />
       </View>
-
-      <View style={styles.content}>
-        <Text style={styles.instruction}>Vui lòng chuyển khoản đúng số tiền và nội dung bên dưới:</Text>
-        
-        <View style={styles.bankCard}>
-          <Text style={styles.label}>NGÂN HÀNG</Text>
-          <Text style={styles.value}>VIETCOMBANK (VCB)</Text>
-
-          <Text style={styles.label}>SỐ TÀI KHOẢN</Text>
-          <Text style={styles.accountNumber}>1023456789</Text>
-
-          <Text style={styles.label}>CHỦ TÀI KHOẢN</Text>
-          <Text style={styles.value}>CONG TY DAT VE PHIM</Text>
-
-          <Text style={styles.label}>SỐ TIỀN</Text>
-          <Text style={styles.price}>{Number(totalPrice).toLocaleString()}đ</Text>
-
-          <Text style={styles.label}>NỘI DUNG CHUYỂN KHOẢN</Text>
-          <View style={styles.copyBox}>
-            <Text style={styles.copyText}>TICKET {seats}</Text>
-          </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.qrCard}>
+          <Text style={styles.qrInstruction}>Quét mã VietQR để thanh toán</Text>
+          <Image source={{ uri: qrUrl }} style={styles.qrImage} />
+          <Text style={styles.amountValue}>{Number(totalPrice).toLocaleString()}đ</Text>
+          <Text style={{color: '#666', marginTop: 5}}>{ACCOUNT_NAME}</Text>
         </View>
-
         <TouchableOpacity style={styles.confirmBtn} onPress={handleConfirm}>
           <Text style={styles.confirmBtnText}>Tôi đã chuyển khoản xong</Text>
         </TouchableOpacity>
-      </View>
-    </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0F1C' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', padding: 20, paddingTop: 50, alignItems: 'center' },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 20 },
+  backBtn: { backgroundColor: '#161626', padding: 10, borderRadius: 12 },
   headerTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold' },
-  content: { padding: 20 },
-  instruction: { color: '#888', textAlign: 'center', marginBottom: 25 },
-  bankCard: { backgroundColor: '#161626', padding: 25, borderRadius: 20, borderWidth: 1, borderColor: '#2a2a3a' },
-  label: { color: '#555', fontSize: 11, fontWeight: 'bold', marginTop: 15 },
-  value: { color: '#fff', fontSize: 16, fontWeight: 'bold', marginTop: 4 },
-  accountNumber: { color: '#00E5FF', fontSize: 24, fontWeight: 'bold', marginTop: 4 },
-  price: { color: '#e21221', fontSize: 24, fontWeight: 'bold', marginTop: 4 },
-  copyBox: { backgroundColor: '#0f0f1a', padding: 12, borderRadius: 10, marginTop: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: '#444' },
-  copyText: { color: '#fff', textAlign: 'center', fontWeight: 'bold', letterSpacing: 1 },
-  confirmBtn: { backgroundColor: '#e21221', padding: 18, borderRadius: 15, marginTop: 40, alignItems: 'center' },
-  confirmBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 16 }
+  content: { padding: 20, alignItems: 'center' },
+  qrCard: { backgroundColor: '#fff', width: '100%', borderRadius: 25, padding: 25, alignItems: 'center' },
+  qrInstruction: { fontSize: 14, color: '#000', marginBottom: 15, fontWeight: 'bold' },
+  qrImage: { width: 250, height: 250 },
+  amountValue: { fontSize: 28, fontWeight: 'bold', color: '#e21221', marginTop: 15 },
+  confirmBtn: { backgroundColor: '#e21221', width: '100%', paddingVertical: 18, borderRadius: 16, alignItems: 'center', marginTop: 25 },
+  confirmBtnText: { color: '#fff', fontSize: 16, fontWeight: 'bold' }
 });

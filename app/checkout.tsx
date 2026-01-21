@@ -17,15 +17,23 @@ export default function CheckoutScreen() {
     { id: 'bank', name: 'Thẻ ATM / Internet Banking', icon: 'business', color: '#4caf50' },
   ];
 
-  const processPayment = () => {
-    router.push({
-      pathname: `/payment/${paymentMethod}` as any, 
-      params: { 
-        ...params, // Truyền tất cả dữ liệu sang trang thanh toán
-        method: paymentMethod 
-      }
-    });
-  };
+const processPayment = () => {
+  router.push({
+    pathname: `/payment/${paymentMethod}` as any, 
+    params: { 
+      // Phải truyền đầy đủ đống này sang trang QR
+      screeningId: screeningId,
+      movieId: movieId,
+      title: title,
+      seats: seats,
+      totalPrice: totalPrice,
+      time: time,
+      date: date,
+      cinema: cinema, // rạp
+      image: image,
+    }
+  });
+};
 
   return (
     <SafeAreaView style={styles.container}>
